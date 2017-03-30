@@ -86,6 +86,72 @@ function start(res) {
     }, REFRESH_TIME);
 }
 
+function handle_event(event){
+	switch(event.event){
+		case 0:
+			new_player(event.name)
+				break;
+		case 1:
+			kill_player(event.name);
+			break;
+		case 2:
+			increase_trail(event.name, event.position);
+			break;
+		case 3:
+			remove_trail(event.name);
+			break;
+		case 4:
+			change_color(event.position, event.color);
+			break;
+		case 5:
+			change_direction(event.name, event.direction);
+			break;
+	}
+
+
+}
+
+function new_player(name){
+	var p = players_tmp[name];
+	newPlayer(p);
+	players[name] = players_tmp[name];
+}
+
+function kill_player(name){
+	removePlayer(players[name]);
+	$('.'+name).toggle('explode');
+	$('.'+name).remove();
+}
+
+function increase_trail(name, position){
+	var $trails = $('#trails');
+        players[name].trail.push(position);;
+        var $cell = $('<div/>')
+                    .css('background', getColor(players[name].color, true))
+                    .addClass(name)
+                    .css('width', CELL_WIDTH + "px")
+                    .css('height', CELL_HEIGHT + "px")
+                    .css('position', 'absolute')
+                    .css('top', (CELL_HEIGHT * position.y) + "px")
+                    .css('left', (CELL_WIDTH * position.x) + "px");
+                $trails.append($cell);
+
+}
+
+function remove_trail(name){
+	players[name].trail = [];
+	$('.'+name).remove();
+}
+
+function change_color(position, color){
+	map[position.x][position.y] = color;
+	$('#map').children().eq(position.x).children().eq(position.y).css('background', getColor(color));
+}
+
+function change_direction(name, direction){
+	players[name].direction = direction;	
+}
+
 function createGrid(map) {
     var bw = map.length * CELL_WIDTH;
     var bh = map[0].length * CELL_HEIGHT;
@@ -130,6 +196,7 @@ function newPlayer(p) {
 }
 
 function removePlayer(p) {
+ $( "#"+p.name ).toggle( "explode" );
     $('#' + p.name).remove();
 }
 
@@ -159,6 +226,7 @@ function refreshMap(newMap) {
 
 }
 
+
 function refreshTrails(ps) {
     // to edit, really bad optimisation for the moment
     $trails = $('#trails');
@@ -183,7 +251,7 @@ function refreshTrails(ps) {
 
 function refresh(res) {
     res = JSON.parse(res);
-    for (var playername in res.players) {
+/*    for (var playername in res.players) {
         if (res.players.hasOwnProperty(playername)) {
 
             if (players.hasOwnProperty(playername)) {
@@ -207,7 +275,7 @@ function refresh(res) {
                                 easing: "swing",
                                 queue: true
                             });
-                        } else {*/
+                        } else {
                         vardiff = vector({
                             x: (CELL_WIDTH * p.position.x),
                             y: (CELL_HEIGHT * p.position.y)
@@ -218,9 +286,9 @@ function refresh(res) {
                             left: x0,
                             top: y0,
                         }, {
-                            duration: 200,
-                            easing: "swing",
-                            queue: true
+                            duration: REFRESH_TIME*1.2,
+                            easing: "linear",
+                            queue:false 
                         });
                         //}
                     }
@@ -249,15 +317,17 @@ function refresh(res) {
     refreshTrails(res.players);
     map = res.map;
     players = res.players;
-    player = players[player.name];
-    if (!dead) {
+    player = players[player.name];*/
+    players_tmp = res.players;
+    for (var i = 0; i < res.players[player.name].changes.length; i ++){
+	handle_event(res.players[player.name].changes[i]);
+    }
         setTimeout(() => {
             $.post("update", {
                 direction: -1,
                 username: player.name
             }, refresh);
         }, REFRESH_TIME);
-    }
 }
 
 function directionChange(direction) {
@@ -297,79 +367,6 @@ function getCoords($div) {
         x: parseInt($div.css('left').replace('px', '')),
         y: parseInt($div.css('top').replace('px', ''))
     };
-}
-
-function moveTo($div, position, time) {
-    if (animated) {
-        animated = false;
-        setTimeout(() => {
-            moveTo($div, position, time);
-        }, ANIMATION_DELAY);
-    } else {
-        var cpos = getCoords($div);
-        var v = vector(position, cpos);
-        var stepv = scal(ANIMATION_DELAY / time, v);
-        var count = Math.floor(time / ANIMATION_DELAY);
-        var cpos = getCoords($div);
-        animated = true;
-        var id = setInterval(frame, ANIMATION_DELAY);
-
-    }
-
-    function frame() {
-        if (animated) {
-            count--;
-            cpos = addVectors(cpos, stepv);
-            $div.css('top', cpos.y + "px")
-                .css('left', cpos.x + "px");
-            if (count == 0) {
-                animated = false;
-                clearInterval(id);
-            }
-        } else {
-            clearInterval(id);
-            $div.css('top', position.y + "px")
-                .css('left', position.x + "px");
-
-        }
-    }
-}
-animated = false;
-
-function moveBy($div, position, time) {
-    if (animated) {
-        animated = false;
-        setTimeout(() => {
-            moveBy($div, position, time);
-        }, ANIMATION_DELAY);
-    } else {
-        var stepv = scal(ANIMATION_DELAY / time, position);
-        var count = Math.floor(time / ANIMATION_DELAY);
-        var cpos = getCoords($div);
-        var cfinal = addVectors(cpos, position);
-        animated = true;
-        var id = setInterval(frame, ANIMATION_DELAY);
-
-    }
-
-    function frame() {
-        if (animated) {
-            count--;
-            cpos = addVectors(cpos, stepv);
-            $div.css('top', cpos.y + "px")
-                .css('left', cpos.x + "px");
-            if (count == 0) {
-                animated = false;
-                clearInterval(id);
-            }
-        } else {
-            clearInterval(id);
-            $div.css('top', cfinal.y + "px")
-                .css('left', cfinal.x + "px");
-
-        }
-    }
-
 }
 
 $(document).keydown(function(e) {

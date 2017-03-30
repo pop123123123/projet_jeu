@@ -1,15 +1,12 @@
 var express = require('express');
-var rp = require('request-promise');
 var path = require("path");
 var bodyParser = require("body-parser");
-var cors = require('cors')
 var app = express();
 
 app.use(bodyParser.urlencoded({
     extended: false
 }));
 app.use(bodyParser.json());
-app.use(cors())
 
 var width = 40;
 var height = 40;
@@ -80,8 +77,8 @@ app.get('/new_player', (req, res) => {
         state: ALIVE,
         countDown: 4,
         color: i,
-        change: true,
-        direction: 0
+        direction: 0,
+	changes: []
     }
     for (let x = -1; x < 2; x++) {
         for (let y = -1; y < 2; y++) {
@@ -91,6 +88,7 @@ app.get('/new_player', (req, res) => {
             }, player.color);
         }
     }
+invalidate({event:0, name:name});
     players[name] = player;
     res.setHeader('Content-Type', 'text/plain');
     res.send({
@@ -103,8 +101,9 @@ app.get('/new_player', (req, res) => {
 app.post('/update', function(req, res) {
     var name = req.body.username;
     var d = parseInt(req.body.direction);
-    if (d != -1) {
+    if (d != -1 && players[name].direction != d) {
         players[name].direction = d;
+	invalidate({event:5, name:name, direction:d});
     }
     let result = {
         players: players,
@@ -113,7 +112,7 @@ app.post('/update', function(req, res) {
     res.setHeader('Content-Type', 'text/plain');
     res.send(result);
     if (Object.prototype.hasOwnProperty.call(players, name)) {
-        players[name].change = false;
+        players[name].changes = [];
     }
 });
 
@@ -134,6 +133,7 @@ function randomPosition() {
 function replaceColor(position, color) {
     if (!isOutOfBounds(position)) {
         map[position.x][position.y] = color;
+	invalidate({event: 4, position:position, color: color});
     }
 }
 
@@ -181,7 +181,7 @@ function killPlayer(player) {
             }
         }
     }
-    invalidate();
+    invalidate({event: 1, name:player.name});
 }
 
 function isColliding(position) {
@@ -200,7 +200,7 @@ function isColliding(position) {
 
 function fill(trail, color) {
     for (var i = 0; i < trail.length; i++) {
-        map[trail[i].x][trail[i].y] = color;
+        replaceColor({x:trail[i].x, y:trail[i].y},color);
     }
     map0 = []
     for (var x = 0; x < width; x++) {
@@ -244,7 +244,6 @@ function fill(trail, color) {
             }
         }
     }
-    invalidate();
 }
 
 function deFlag(map0) {
@@ -255,10 +254,10 @@ function deFlag(map0) {
     }
 }
 
-function invalidate() {
+function invalidate(event) {
     for (var playername in players) {
         if (players.hasOwnProperty(playername)) {
-            players[playername].change = true;
+            players[playername].changes.push(event);
         }
     }
 }
@@ -284,6 +283,7 @@ function updatePositions() {
                 if (map[player.position.x][player.position.y] != player.color) {
                     player.state = TRAILING;
                     player.trail.push(player.position);
+		    invalidate({event:2, name:player.name, position:player.position});
                 }
                 player.position = getNewPos(player.position, player.direction);
                 let a = isColliding(player.position);
@@ -296,6 +296,7 @@ function updatePositions() {
                     if (map[player.position.x][player.position.y] == player.color && player.state == TRAILING) {
                         fill(player.trail, player.color);
                         player.trail = [];
+			invalidate({event:3, name:player.name});
                         player.state = ALIVE;
                     }
                 }
